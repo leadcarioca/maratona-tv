@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#141414">
+<meta name="robots" content="noindex">
+<title>Maratona · Enviar lista para a TV</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #141414; color: #fff; font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; min-height: 100vh; }
+  .wrap { max-width: 460px; margin: 0 auto; padding: 28px 20px 40px; }
+  .logo { color: #e50914; font-weight: 900; font-size: 30px; letter-spacing: 2px; }
+  h1 { font-size: 22px; margin: 18px 0 6px; }
+  .sub { color: #aaa; font-size: 15px; margin-bottom: 22px; }
+  .code { display: inline-block; background: #262626; border-radius: 8px; padding: 6px 12px; font-weight: 800; letter-spacing: 3px; font-size: 18px; }
+  .tabs { display: flex; background: #222; border-radius: 10px; padding: 4px; margin-bottom: 20px; }
+  .tab { flex: 1; text-align: center; padding: 11px 0; border-radius: 8px; color: #aaa; font-weight: 700; border: 0; background: none; font-size: 15px; }
+  .tab.on { background: #fff; color: #000; }
+  label { display: block; font-size: 14px; color: #bbb; margin: 14px 0 6px; }
+  input { width: 100%; font-size: 17px; padding: 14px; border-radius: 10px; border: 2px solid #333; background: #1f1f1f; color: #fff; outline: none; }
+  input:focus { border-color: #fff; }
+  .row { display: flex; gap: 8px; }
+  .row input { flex: 1; }
+  .paste { flex-shrink: 0; border: 0; border-radius: 10px; background: #333; color: #fff; font-weight: 700; padding: 0 14px; font-size: 14px; }
+  .send { width: 100%; margin-top: 26px; padding: 16px; font-size: 18px; font-weight: 800; border: 0; border-radius: 10px; background: #e50914; color: #fff; }
+  .send:disabled { opacity: .5; }
+  .msg { margin-top: 16px; font-size: 15px; min-height: 22px; text-align: center; }
+  .msg.err { color: #ff6b6b; }
+  .done { text-align: center; padding: 50px 0; }
+  .done .ok { font-size: 64px; }
+  .done h2 { margin: 10px 0 8px; }
+  .done p { color: #aaa; }
+  .done button { margin-top: 26px; background: #333; color: #fff; border: 0; border-radius: 10px; padding: 12px 20px; font-size: 15px; font-weight: 700; }
+  .hidden { display: none; }
+  .foot { margin-top: 30px; font-size: 12.5px; color: #666; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">MARATONA</div>
+
+  <div id="form-area">
+    <h1>Enviar lista para a TV</h1>
+    <p class="sub" id="code-line"></p>
+
+    <div id="code-ask" class="hidden">
+      <label for="code">Código que aparece na TV</label>
+      <input id="code" maxlength="9" autocapitalize="characters" autocomplete="off" placeholder="ABCD 1234">
+    </div>
+
+    <div class="tabs">
+      <button class="tab on" data-t="m3u">Link M3U</button>
+      <button class="tab" data-t="xt">Xtream Codes</button>
+    </div>
+
+    <label for="name">Nome da lista</label>
+    <input id="name" placeholder="Ex.: Minha IPTV" autocomplete="off">
+
+    <div id="t-m3u">
+      <label for="url">Link da lista M3U</label>
+      <div class="row">
+        <input id="url" type="url" inputmode="url" placeholder="http://servidor.com/lista.m3u" autocomplete="off" autocapitalize="off">
+        <button class="paste" data-target="url" type="button">Colar</button>
+      </div>
+    </div>
+
+    <div id="t-xt" class="hidden">
+      <label for="server">Servidor</label>
+      <div class="row">
+        <input id="server" inputmode="url" placeholder="http://servidor.com:8080" autocomplete="off" autocapitalize="off">
+        <button class="paste" data-target="server" type="button">Colar</button>
+      </div>
+      <label for="user">Usuário</label>
+      <input id="user" autocomplete="off" autocapitalize="off">
+      <label for="pass">Senha</label>
+      <input id="pass" autocomplete="off" autocapitalize="off">
+    </div>
+
+    <button class="send" id="send">Enviar para a TV</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div id="done" class="done hidden">
+    <div class="ok">✅</div>
+    <h2>Enviado!</h2>
+    <p>Olhe para a TV: a lista aparece em poucos segundos.</p>
+    <button id="again">Enviar outra lista</button>
+  </div>
+
+  <p class="foot">Os dados vão direto para a sua TV e são apagados do servidor assim que ela recebe.</p>
+</div>
+
+<script>
+var SUPABASE_URL = 'https://lrkjfkruaueflrdgnmzo.supabase.co';
+var SUPABASE_KEY = 'sb_publishable_5zm5yoHSw8FyLHKkWzAWyA_SHXVmup7';
+
+(function () {
+  function $(id) { return document.getElementById(id); }
+  var tab = 'm3u';
+  var code = (new URLSearchParams(location.search).get('c') || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  if (code.length >= 6) {
+    $('code-line').innerHTML = 'Código da TV: <span class="code"></span>';
+    $('code-line').querySelector('.code').textContent = code.slice(0, 4) + ' ' + code.slice(4);
+  } else {
+    $('code-line').textContent = 'Digite o código que aparece na tela de Ajustes do app na TV.';
+    $('code-ask').classList.remove('hidden');
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (b) {
+    b.onclick = function () {
+      tab = b.getAttribute('data-t');
+      Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (x) { x.classList.toggle('on', x === b); });
+      $('t-m3u').classList.toggle('hidden', tab !== 'm3u');
+      $('t-xt').classList.toggle('hidden', tab !== 'xt');
+    };
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll('.paste'), function (b) {
+    if (!navigator.clipboard || !navigator.clipboard.readText) { b.style.display = 'none'; return; }
+    b.onclick = function () {
+      navigator.clipboard.readText().then(function (t) { $(b.getAttribute('data-target')).value = (t || '').trim(); })
+        .catch(function () { msg('Não consegui colar automaticamente. Toque no campo e cole.', true); });
+    };
+  });
+
+  function msg(t, err) { $('msg').textContent = t; $('msg').className = 'msg' + (err ? ' err' : ''); }
+
+  // Se o usuário colar um link Xtream (get.php?username=...), preenche os campos sozinho.
+  $('url').addEventListener('input', function () {
+    var v = $('url').value.trim();
+    var m = /^(https?:\/\/[^\/]+)\/get\.php\?(.*)$/i.exec(v);
+    if (!m) return;
+    var p = new URLSearchParams(m[2]);
+    if (p.get('username') && p.get('password')) msg('Link Xtream reconhecido. Pode enviar assim mesmo.');
+  });
+
+  $('send').onclick = function () {
+    var c = code || $('code').value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (c.length < 6) { msg('Digite o código que aparece na TV.', true); return; }
+    var payload = { name: $('name').value.trim() };
+    if (tab === 'm3u') {
+      payload.url = $('url').value.trim();
+      if (!/^https?:\/\//i.test(payload.url)) { msg('O link precisa começar com http:// ou https://', true); return; }
+    } else {
+      payload.server = $('server').value.trim();
+      payload.user = $('user').value.trim();
+      payload.pass = $('pass').value.trim();
+      if (!payload.server || !payload.user || !payload.pass) { msg('Preencha servidor, usuário e senha.', true); return; }
+    }
+    $('send').disabled = true;
+    msg('Enviando…');
+    var h = { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY };
+    if (SUPABASE_KEY.indexOf('eyJ') === 0) h.Authorization = 'Bearer ' + SUPABASE_KEY;
+    fetch(SUPABASE_URL + '/rest/v1/rpc/tv_pair_submit', {
+      method: 'POST', headers: h, body: JSON.stringify({ p_code: c, p_payload: payload })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      $('form-area').classList.add('hidden');
+      $('done').classList.remove('hidden');
+    }).catch(function () {
+      msg('Não foi possível enviar. Confira sua internet e tente de novo.', true);
+    }).then(function () { $('send').disabled = false; });
+  };
+
+  $('again').onclick = function () {
+    $('done').classList.add('hidden');
+    $('form-area').classList.remove('hidden');
+    msg('');
+  };
+})();
+</script>
+</body>
+</html>
